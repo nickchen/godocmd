@@ -12,7 +12,6 @@ import "github.com/nickchen/godocmd/fixture/two"
 
 * [Functions](#Functions)
     * [func FibFunction(n int)(int)](#func-fibfunction)
-    * [func TestFibCache(t *testing.T)](#func-testfibcache)
 
 * [Types](#Types)
     * [type Cache](#type-cache)
@@ -24,7 +23,7 @@ import "github.com/nickchen/godocmd/fixture/two"
 
 ### Package files
 
- [two.go](../../fixture/two/two.go)  [two_test.go](../../fixture/two/two_test.go) 
+ [two.go](/Users/nickchen/Documents/GitHub/godocmd/fixture/two/two.go)  [two_test.go](/Users/nickchen/Documents/GitHub/godocmd/fixture/two/two_test.go) 
 
 
 ## Constants
@@ -49,12 +48,6 @@ FibFunction uses no objects
 
 ```
 func FibFunction(n int)(int)
-```
-
-### func TestFibCache
-
-```
-func TestFibCache(t *testing.T)
 ```
 
 

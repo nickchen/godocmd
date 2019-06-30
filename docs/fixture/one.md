@@ -9,9 +9,6 @@ import "github.com/nickchen/godocmd/fixture/one"
 ## Index
 
 
-* [Functions](#Functions)
-    * [func TestFibNoCache(t *testing.T)](#func-testfibnocache)
-
 * [Types](#Types)
     * [type FOne](#type-fone)
     * [type FOneSub](#type-fonesub)
@@ -19,17 +16,8 @@ import "github.com/nickchen/godocmd/fixture/one"
 
 ### Package files
 
- [one.go](../../fixture/one/one.go)  [one_test.go](../../fixture/one/one_test.go) 
+ [one.go](/Users/nickchen/Documents/GitHub/godocmd/fixture/one/one.go)  [one_test.go](/Users/nickchen/Documents/GitHub/godocmd/fixture/one/one_test.go) 
 
-
-
-## Functions
-
-### func TestFibNoCache
-
-```
-func TestFibNoCache(t *testing.T)
-```
 
 
 

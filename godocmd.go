@@ -35,9 +35,17 @@ func NewPackage(docPkg *doc.Package) *Package {
 
 func (pkg *Package) init() {
 	for _, f := range pkg.Funcs {
-		if strings.HasPrefix(f.Name, "Example") || strings.HasPrefix(f.Name, "Benchmark") {
-			pkg.FuncsName[f.Name] = f
-		} else {
+		matched := false
+		for _, prefix := range []string{"Example", "Benchmark", "Test"} {
+			if strings.HasPrefix(f.Name, prefix) {
+				if prefix != "Test" {
+					pkg.FuncsName[f.Name] = f
+				}
+				matched = true
+				break
+			}
+		}
+		if !matched {
 			pkg.FuncsFiltered = append(pkg.FuncsFiltered, f)
 		}
 	}
@@ -49,8 +57,8 @@ func New(templateFile string) (*DocMD, error) {
 
 func (d *DocMD) writeOutPackageMD(docPkg *doc.Package, fset *token.FileSet, name, outDir string) error {
 	pkg := NewPackage(docPkg)
-	_filepath := filepath.Join(outDir, fmt.Sprintf("%s.md", name))
-	f, err := os.Create(_filepath)
+	outfile := filepath.Join(outDir, fmt.Sprintf("%s.md", pkg.Name))
+	f, err := os.Create(outfile)
 	if err != nil {
 		return err
 	}
@@ -68,6 +76,68 @@ func (d *DocMD) writeOutPackageMD(docPkg *doc.Package, fset *token.FileSet, name
 	err = temp.Execute(f, pkg)
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func (d *DocMD) processDir(outDir, packageBasePath, sourcePath string) error {
+	fset := token.NewFileSet()
+	pkgs, err := parser.ParseDir(fset, sourcePath, nil, parser.ParseComments)
+	if err != nil {
+		return fmt.Errorf("failed to parse source: %s", err)
+	}
+	for pkgName, pkgAst := range pkgs {
+		if strings.HasSuffix(pkgName, "_test") {
+			continue
+		}
+		pkg := doc.New(pkgAst, packageBasePath, doc.PreserveAST)
+		err := d.writeOutPackageMD(pkg, fset, pkgName, outDir)
+		if err != nil {
+			return fmt.Errorf("failed to write out: %s", err)
+		}
+	}
+	return nil
+}
+
+func (d *DocMD) ProcessPackageDirs(outDir, packageBasePath string, dirs ...string) error {
+	for _, dir := range dirs {
+		abspath, err := filepath.Abs(dir)
+		if err != nil {
+			fmt.Printf("failed abs on path %s: %s", dir, err)
+			continue
+		}
+		prefixDir, rootDir := filepath.Split(abspath)
+		fmt.Println("Processing", prefixDir, rootDir)
+		// dirBase := filepath.Base(dir)
+		err = filepath.Walk(abspath, func(sourcePath string, info os.FileInfo, err error) error {
+			if err != nil {
+				fmt.Printf("walk failure accessing a path %q: %v\n", sourcePath, err)
+				return err
+			}
+			if info.IsDir() {
+				relPath, err := filepath.Rel(prefixDir, sourcePath)
+				currentOutDir := filepath.Dir(filepath.Join(outDir, relPath))
+				if _, err := os.Stat(currentOutDir); os.IsNotExist(err) {
+					// output path doesn't exist, need to make
+					os.Mkdir(currentOutDir, os.ModePerm)
+				}
+				fmt.Println("  * Doing", sourcePath, relPath)
+				packageImportPath := fmt.Sprintf("%s/%s", packageBasePath, relPath)
+				if packageBasePath == "" {
+					packageImportPath = relPath
+				}
+				err = d.processDir(currentOutDir, packageImportPath, sourcePath)
+				if err != nil {
+					fmt.Printf("failed to process path %q: %v\n", sourcePath, err)
+					return err
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			fmt.Printf("error walking the path %q: %v\n", dir, err)
+			return err
+		}
 	}
 	return nil
 }
@@ -125,7 +195,7 @@ func (d *DocMD) functionParam(fset *token.FileSet) func(string, *ast.FuncDecl) s
 
 func (d *DocMD) sourceFileLink(fset *token.FileSet) func(string) string {
 	return func(_filepath string) string {
-		return fmt.Sprintf("[%s](../../%s)", filepath.Base(_filepath), _filepath)
+		return fmt.Sprintf("[%s](%s)", filepath.Base(_filepath), _filepath)
 	}
 }
 
@@ -192,59 +262,4 @@ func (d *DocMD) templateFuncMap(fset *token.FileSet, pkg *Package) *template.Fun
 		"anchorFunc":          d.functionAnchor(fset),
 		"getExampleForFunc":   d.getExampleForFunc(pkg),
 	}
-}
-
-func (d *DocMD) processDir(outDir, packageBasePath string, dir string) error {
-	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, dir, nil, parser.ParseComments)
-	if err != nil {
-		return fmt.Errorf("failed to parse source: %s", err)
-	}
-	for pkgName, pkgAst := range pkgs {
-		pkg := doc.New(pkgAst, fmt.Sprintf("%s/%s", packageBasePath, pkgName), doc.PreserveAST)
-		err := d.writeOutPackageMD(pkg, fset, pkgName, outDir)
-		if err != nil {
-			return fmt.Errorf("failed to write out: %s", err)
-		}
-	}
-	return nil
-}
-
-func (d *DocMD) ProcessPackageDirs(outDir, packageBasePath string, dirs ...string) error {
-	for _, dir := range dirs {
-		fmt.Println("Processing", dir)
-		// dirBase := filepath.Base(dir)
-		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				fmt.Printf("walk failure accessing a path %q: %v\n", path, err)
-				return err
-			}
-			if info.IsDir() {
-				// figure out if we need to make a doc directory base on sub-package nesting
-				currentOutDir := outDir
-				currentBase := filepath.Dir(path)
-				currentPackageBase := packageBasePath
-				if currentBase != path {
-					currentOutDir = filepath.Join(outDir, currentBase)
-					currentPackageBase = fmt.Sprintf("%s/%s", packageBasePath, currentBase)
-				}
-				if _, err := os.Stat(currentOutDir); os.IsNotExist(err) {
-					// output path doesn't exist, need to make
-					os.Mkdir(currentOutDir, os.ModePerm)
-				}
-				fmt.Println("  * Doing", path)
-				err = d.processDir(currentOutDir, currentPackageBase, path)
-				if err != nil {
-					fmt.Printf("failed to process path %q: %v\n", path, err)
-					return err
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			fmt.Printf("error walking the path %q: %v\n", dir, err)
-			return err
-		}
-	}
-	return nil
 }
