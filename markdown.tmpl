@@ -9,9 +9,9 @@ import "{{.ImportPath}}"
 ## Index
 {{if .Consts}}
 * [Constants](#Constants){{end}}{{/* END if .Consts */}}
-{{if .Funcs}}
-* [Functions](#Functions){{range $func := .Funcs}}
-    * [{{functionSignature .}}]({{anchorFunc "link" .}}){{end}}{{/* END range .Funcs */}}
+{{if .FuncsFiltered}}
+* [Functions](#Functions){{range $func := .FuncsFiltered}}
+    * [{{functionSignature .}}]({{anchorFunc "link" .}}){{end}}{{/* END range .FuncsFiltered */}}
 {{end}}{{/* END if .Funcs */}}{{if .Types}}
 * [Types](#Types){{range $types := .Types}}
     * [type {{ .Name }}]({{anchorFunc "link" .}}){{range $typeFunc := .Funcs }}
@@ -26,46 +26,67 @@ import "{{.ImportPath}}"
 ## Constants
 {{range $const := .Consts}}
 ```
-{{ typeSourceString .Decl }}
+{{ anyTypeSourceString .Decl }}
 ```
-{{end}}
-{{end}}
-
-{{if .Funcs}}
+{{end}}{{/* END range .Consts */}}{{end}}{{/* END if .Consts */}}
+{{if .FuncsFiltered}}
 ## Functions
-{{range $func := .Funcs}}
+{{range $func := .FuncsFiltered}}
 ### func {{.Name}}
-{{with .Doc}}{{.}}{{end}}
+{{.Doc}}
 ```
 {{functionSignature .}}
 ```
-{{end}}
-{{end}}{{/* END Functions */}}
+{{end}}{{/* END range .FuncsFiltered */}}
+{{end}}{{/* END if .FuncsFiltered */}}
 
 {{if .Types}}
 ## Types
-{{range $types := .Types}}
+{{range $type := .Types}}
 ### type {{ .Name }}
 ```
-{{ typeDecl .Decl }}
+{{ anyTypeSourceString .Decl }}
 ```
 {{ with .Consts }}
 {{ range $const := . }}
-{{with .Doc}}{{ . }}{{end}}
+{{.Doc}}
 ```
-{{ typeSourceString .Decl }}
+{{ anyTypeSourceString .Decl }}
 ```
 {{ end }} {{/* END range . */}}
 {{ end }} {{/* END with .Const */}}
 
 {{ with .Funcs }}
-{{ range $funcs := . }}
+{{ range $func := . }}
 #### {{ functionSignature . }}
 {{.Doc}}
 ```
 {{ functionSignature . }}
 ```
-{{ end }} {{/* END with .Const */}}
-{{ end }} {{/* END with .Func */}}
-{{ end }} {{/* END range . */}}
-{{ end }} {{/* END with .Types */}}
+{{ range $example := getExampleForFunc $type . }}
+##### Example ({{$func.Name}})
+```
+{{ anyTypeSourceString .Decl }}
+```
+{{ end }} {{/* END with example */}}
+{{ end }} {{/* END range .(Funcs) */}}{{ end }} {{/* END with .Funcs */}}
+
+{{ with .Methods }}
+{{ range $func := . }}
+#### {{ functionSignature . }}
+{{.Doc}}
+```
+{{ functionSignature . }}
+```
+{{ range $example := getExampleForFunc $type . }}
+
+##### Example ({{$func.Name}})
+```
+{{ anyTypeSourceString .Decl }}
+```
+{{ end }} {{/* END with example */}}
+{{ end }} {{/* END range .(Methods) */}}{{ end }} {{/* END with .Methods */}}
+
+{{ end }} {{/* END range .(Types) */}}
+{{ end }} {{/* END if .Types */}}
+<p align="center" ><small>automatically generated</small></p>

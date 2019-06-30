@@ -10,8 +10,6 @@ import "github.com/nickchen/godocmd/fixture/one"
 
 
 * [Functions](#Functions)
-    * [func BenchmarkFibNoCacheTen(b *testing.B)](#func-benchmarkfibnocacheten)
-    * [func ExampleFOne_FibNoCache()](#func-examplefone_fibnocache)
     * [func TestFibNoCache(t *testing.T)](#func-testfibnocache)
 
 * [Types](#Types)
@@ -25,20 +23,7 @@ import "github.com/nickchen/godocmd/fixture/one"
 
 
 
-
 ## Functions
-
-### func BenchmarkFibNoCacheTen
-
-```
-func BenchmarkFibNoCacheTen(b *testing.B)
-```
-
-### func ExampleFOne_FibNoCache
-
-```
-func ExampleFOne_FibNoCache()
-```
 
 ### func TestFibNoCache
 
@@ -64,6 +49,35 @@ type FOne struct {
 
  
 
+
+
+#### func CalculateSum(a, b int)(int)
+CalculateSum return sum of two integers
+
+```
+func CalculateSum(a, b int)(int)
+```
+ 
+
+#### func FibNoCache(n int)(int)
+CalculateSum return sum of two integers
+
+```
+func FibNoCache(n int)(int)
+```
+
+
+##### Example (FibNoCache)
+```
+func ExampleFOne_FibNoCache() {
+	fmt.Println((&FOne{}).FibNoCache(10))
+
+}
+```
+ 
+  
+
+
 ### type FOneSub
 ```
 // FOneSub use FOne as parent
@@ -74,5 +88,9 @@ type FOneSub struct {
  
 
  
+
+ 
+
  
  
+<p align="center" ><small>automatically generated</small></p>

@@ -11,8 +11,6 @@ import "github.com/nickchen/godocmd/fixture/two"
 * [Constants](#Constants)
 
 * [Functions](#Functions)
-    * [func BenchmarkFibCacheTen(b *testing.B)](#func-benchmarkfibcacheten)
-    * [func ExampleFTwo_FibCache()](#func-exampleftwo_fibcache)
     * [func FibFunction(n int)(int)](#func-fibfunction)
     * [func TestFibCache(t *testing.T)](#func-testfibcache)
 
@@ -44,21 +42,7 @@ const (
 ```
 
 
-
-
 ## Functions
-
-### func BenchmarkFibCacheTen
-
-```
-func BenchmarkFibCacheTen(b *testing.B)
-```
-
-### func ExampleFTwo_FibCache
-
-```
-func ExampleFTwo_FibCache()
-```
 
 ### func FibFunction
 FibFunction uses no objects
@@ -94,7 +78,10 @@ NewCache doc string
 func NewCache()(*Cache)
 ```
  
+  
+
  
+
 
 ### type FOneSub
 ```
@@ -106,6 +93,18 @@ type FOneSub struct {
  
 
  
+
+
+
+#### func CalculateSum(a, b int)(int)
+CalculateSum return sum of two integers
+
+```
+func CalculateSum(a, b int)(int)
+```
+ 
+  
+
 
 ### type FTwo
 ```
@@ -129,6 +128,28 @@ New get a new FTwo object
 func New()(*FTwo)
 ```
  
+  
+
+
+
+#### func FibCache(n int)(int)
+FibNoCache return fibonacci value at sequence index n
+
+```
+func FibCache(n int)(int)
+```
+
+
+##### Example (FibCache)
+```
+func ExampleFTwo_FibCache() {
+	fmt.Println(New().FibCache(10))
+
+}
+```
+ 
+  
+
  
  
- 
+<p align="center" ><small>automatically generated</small></p>
