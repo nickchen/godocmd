@@ -4,9 +4,9 @@ Markdown generator for golang documentations
 ```
 Usage of ./godocmd:
   -output-dir string
-    	output directory (default "./")
+    	output directory (default "./docs")
   -package-base string
-    	package import basepath, output from "go list -m"
+    	package import basepath, output from "go list -m" (default "github.com/nickchen/godocmd")
   -template string
-    	package import basepath, output from "go list -m" (default "./docmd/markdown.tmpl")
+    	template file (default "./markdown.tmpl")
 ```
