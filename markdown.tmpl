@@ -1,0 +1,71 @@
+# {{.Name}}
+
+import "{{.ImportPath}}"
+
+- [Overview](#Overview)
+- [Index](#Index)
+- [Examples](#Examples)
+
+## Index
+{{if .Consts}}
+* [Constants](#Constants){{end}}{{/* END if .Consts */}}
+{{if .Funcs}}
+* [Functions](#Functions){{range $func := .Funcs}}
+    * [{{functionSignature .}}]({{anchorFunc "link" .}}){{end}}{{/* END range .Funcs */}}
+{{end}}{{/* END if .Funcs */}}{{if .Types}}
+* [Types](#Types){{range $types := .Types}}
+    * [type {{ .Name }}]({{anchorFunc "link" .}}){{range $typeFunc := .Funcs }}
+        * [{{functionSignature .}}]({{anchorFunc "link" .}}){{end}}{{/* END range .Funcs */}}{{end}}{{/* END range .Types */}}
+{{end}}{{/* END if .Types */}}
+
+### Package files
+
+{{ range $file := .Filenames }} {{sourceFileLink .}} {{ end }}
+
+{{if .Consts}}
+## Constants
+{{range $const := .Consts}}
+```
+{{ typeSourceString .Decl }}
+```
+{{end}}
+{{end}}
+
+{{if .Funcs}}
+## Functions
+{{range $func := .Funcs}}
+### func {{.Name}}
+{{with .Doc}}{{.}}{{end}}
+```
+{{functionSignature .}}
+```
+{{end}}
+{{end}}{{/* END Functions */}}
+
+{{if .Types}}
+## Types
+{{range $types := .Types}}
+### type {{ .Name }}
+```
+{{ typeDecl .Decl }}
+```
+{{ with .Consts }}
+{{ range $const := . }}
+{{with .Doc}}{{ . }}{{end}}
+```
+{{ typeSourceString .Decl }}
+```
+{{ end }} {{/* END range . */}}
+{{ end }} {{/* END with .Const */}}
+
+{{ with .Funcs }}
+{{ range $funcs := . }}
+#### {{ functionSignature . }}
+{{.Doc}}
+```
+{{ functionSignature . }}
+```
+{{ end }} {{/* END with .Const */}}
+{{ end }} {{/* END with .Func */}}
+{{ end }} {{/* END range . */}}
+{{ end }} {{/* END with .Types */}}
