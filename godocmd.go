@@ -38,11 +38,6 @@ func (d *DocMD) writeOutPackageMD(docPkg *doc.Package, name, outDir string) erro
 		f.Sync()
 		f.Close()
 	}()
-	for _, _func := range pkg.Funcs {
-		if pkg.Name != "one" {
-			fmt.Printf("func %s %s %v\n", _func.Name, _func.Doc, _func.Decl)
-		}
-	}
 	err = d.template.Execute(f, pkg)
 	if err != nil {
 		return err
@@ -181,6 +176,7 @@ func (d *DocMD) _processDir(outDir, packageBasePath string, dir string) error {
 
 func (d *DocMD) ProcessPackageDirs(outDir, packageBasePath string, dirs ...string) error {
 	for _, dir := range dirs {
+		fmt.Println("Processing", dir)
 		// dirBase := filepath.Base(dir)
 		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -200,6 +196,7 @@ func (d *DocMD) ProcessPackageDirs(outDir, packageBasePath string, dirs ...strin
 					// output path doesn't exist, need to make
 					os.Mkdir(currentOutDir, os.ModePerm)
 				}
+				fmt.Println("  * Doing", path)
 				err = d._processDir(currentOutDir, currentPackageBase, path)
 				if err != nil {
 					fmt.Printf("failed to process path %q: %v\n", path, err)
