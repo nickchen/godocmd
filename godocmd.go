@@ -15,6 +15,7 @@ import (
 )
 
 type DocMD struct {
+	workingDir   string
 	templateFile string
 }
 
@@ -52,11 +53,15 @@ func (pkg *Package) init() {
 }
 
 func New(templateFile string) (*DocMD, error) {
-	return &DocMD{templateFile: templateFile}, nil
+	var err error
+	d := &DocMD{templateFile: templateFile}
+	d.workingDir, err = filepath.Abs("./")
+	return d, err
 }
 
 func (d *DocMD) writeOutPackageMD(docPkg *doc.Package, fset *token.FileSet, name, outDir string) error {
 	pkg := NewPackage(docPkg)
+	// this should be a path base on current working directory
 	outfile := filepath.Join(outDir, fmt.Sprintf("%s.md", pkg.Name))
 	f, err := os.Create(outfile)
 	if err != nil {
@@ -67,7 +72,7 @@ func (d *DocMD) writeOutPackageMD(docPkg *doc.Package, fset *token.FileSet, name
 		f.Close()
 	}()
 	temp, err := template.New(filepath.Base(d.templateFile)).
-		Funcs(*d.templateFuncMap(fset, pkg)).
+		Funcs(*d.templateFuncMap(fset, pkg, outfile)).
 		ParseFiles(d.templateFile)
 	if err != nil {
 		return fmt.Errorf("failed to parse template: %s", err)
@@ -100,6 +105,9 @@ func (d *DocMD) processDir(outDir, packageBasePath, sourcePath string) error {
 }
 
 func (d *DocMD) ProcessPackageDirs(outDir, packageBasePath string, dirs ...string) error {
+	// for each package dir, walk the directory tree, and create fileset for each, process
+	// fileset using ast
+
 	for _, dir := range dirs {
 		abspath, err := filepath.Abs(dir)
 		if err != nil {
@@ -154,6 +162,7 @@ func (d *DocMD) anyTypeSourceString(fset *token.FileSet) func(interface{}) strin
 	}
 }
 
+// getParamNames from ast.Ident, ie: a, b string or a string
 func getParamNames(idents []*ast.Ident, paramTypeString string) string {
 	if len(idents) == 0 {
 		return paramTypeString
@@ -168,6 +177,7 @@ func getParamNames(idents []*ast.Ident, paramTypeString string) string {
 	return fmt.Sprint(strings.Join(paramNames, ", "), " ", paramTypeString)
 }
 
+// functionParam from ast.FuncDecl, this is for both parameters, and results
 func (d *DocMD) functionParam(fset *token.FileSet) func(string, *ast.FuncDecl) string {
 	return func(_type string, decl *ast.FuncDecl) string {
 		var params []string
@@ -193,9 +203,14 @@ func (d *DocMD) functionParam(fset *token.FileSet) func(string, *ast.FuncDecl) s
 	}
 }
 
-func (d *DocMD) sourceFileLink(fset *token.FileSet) func(string) string {
+// sourceFileLink generate links for the source file, need to rework base on relative path of the doc
+func (d *DocMD) sourceFileLink(fset *token.FileSet, outfile string) func(string) string {
+	outLevel := len(filepath.SplitList(outfile))
+	sourceRel := strings.Repeat("../", outLevel)
 	return func(_filepath string) string {
-		return fmt.Sprintf("[%s](%s)", filepath.Base(_filepath), _filepath)
+
+		relPath, _ := filepath.Rel(d.workingDir, _filepath)
+		return fmt.Sprintf("[%s](%s%s)", filepath.Base(_filepath), sourceRel, relPath)
 	}
 }
 
@@ -254,11 +269,11 @@ func (d *DocMD) getExampleForFunc(pkg *Package) func(*doc.Type, *doc.Func) []*do
 	}
 }
 
-func (d *DocMD) templateFuncMap(fset *token.FileSet, pkg *Package) *template.FuncMap {
+func (d *DocMD) templateFuncMap(fset *token.FileSet, pkg *Package, outfile string) *template.FuncMap {
 	return &template.FuncMap{
 		"functionSignature":   d.functionSignature(fset),
 		"anyTypeSourceString": d.anyTypeSourceString(fset),
-		"sourceFileLink":      d.sourceFileLink(fset),
+		"sourceFileLink":      d.sourceFileLink(fset, outfile),
 		"anchorFunc":          d.functionAnchor(fset),
 		"getExampleForFunc":   d.getExampleForFunc(pkg),
 	}
