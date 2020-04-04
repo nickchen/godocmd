@@ -1,68 +1,42 @@
 package godocmd
 
 import (
-	"bytes"
 	"fmt"
 	"go/ast"
 	"go/doc"
 	"go/parser"
-	"go/printer"
 	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
+
+	"github.com/nickchen/godocmd/templates"
 )
 
 type DocMD struct {
-	workingDir   string
-	templateFile string
+	workingDir string
+	template   *template.Template
 }
 
-type Package struct {
-	*doc.Package
-	// FuncsFiltered filtered out examples and benchmarks
-	FuncsFiltered []*doc.Func
-	FuncsName     map[string]*doc.Func
-}
-
-func NewPackage(docPkg *doc.Package) *Package {
-	pkg := &Package{docPkg,
-		make([]*doc.Func, 0),
-		make(map[string]*doc.Func)}
-	pkg.init()
-	return pkg
-}
-
-func (pkg *Package) init() {
-	for _, f := range pkg.Funcs {
-		matched := false
-		for _, prefix := range []string{"Example", "Benchmark", "Test"} {
-			if strings.HasPrefix(f.Name, prefix) {
-				if prefix != "Test" {
-					pkg.FuncsName[f.Name] = f
-				}
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			pkg.FuncsFiltered = append(pkg.FuncsFiltered, f)
-		}
-	}
-}
-
-func New(templateFile string) (*DocMD, error) {
+func New() (*DocMD, error) {
+	d := &DocMD{}
 	var err error
-	d := &DocMD{templateFile: templateFile}
 	d.workingDir, err = filepath.Abs("./")
 	return d, err
 }
 
-func (d *DocMD) writeOutPackageMD(docPkg *doc.Package, fset *token.FileSet, name, outDir string) error {
-	pkg := NewPackage(docPkg)
+type pkgWithTest struct {
+	main *doc.Package
+	test *doc.Package
+}
+
+func (p *pkgWithTest) writeOutPackageMD(fset *token.FileSet, workingDir, outDir string) error {
+	pkg := NewPackage(p.main, p.test)
 	// this should be a path base on current working directory
 	outfile := filepath.Join(outDir, fmt.Sprintf("%s.md", pkg.Name))
+	directory := filepath.Dir(outfile)
+	_ = os.MkdirAll(directory, os.ModePerm)
 	f, err := os.Create(outfile)
 	if err != nil {
 		return err
@@ -71,11 +45,14 @@ func (d *DocMD) writeOutPackageMD(docPkg *doc.Package, fset *token.FileSet, name
 		f.Sync()
 		f.Close()
 	}()
-	temp, err := template.New(filepath.Base(d.templateFile)).
-		Funcs(*d.templateFuncMap(fset, pkg, outfile)).
-		ParseFiles(d.templateFile)
+
+	temp := template.New("markdown.tmpl")
 	if err != nil {
-		return fmt.Errorf("failed to parse template: %s", err)
+		return err
+	}
+	temp, err = templates.Parse(temp.Funcs(*templateFuncMap(fset, pkg, workingDir, outfile)))
+	if err != nil {
+		return err
 	}
 
 	err = temp.Execute(f, pkg)
@@ -91,15 +68,28 @@ func (d *DocMD) processDir(outDir, packageBasePath, sourcePath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse source: %s", err)
 	}
+	pkgWithTests := make(map[string]*pkgWithTest)
 	for pkgName, pkgAst := range pkgs {
-		if strings.HasSuffix(pkgName, "_test") {
+		if pkgName == "main" {
 			continue
 		}
-		pkg := doc.New(pkgAst, packageBasePath, doc.PreserveAST)
-		err := d.writeOutPackageMD(pkg, fset, pkgName, outDir)
-		if err != nil {
-			return fmt.Errorf("failed to write out: %s", err)
+		if strings.HasSuffix(pkgName, "_test") {
+			mainPkgName := strings.TrimSuffix(pkgName, "_test")
+			if p, ok := pkgWithTests[mainPkgName]; ok {
+				p.test = doc.New(pkgAst, packageBasePath, doc.PreserveAST)
+			} else {
+				pkgWithTests[pkgName] = &pkgWithTest{test: doc.New(pkgAst, packageBasePath, doc.PreserveAST)}
+			}
+		} else {
+			if p, ok := pkgWithTests[pkgName]; ok {
+				p.main = doc.New(pkgAst, packageBasePath, doc.PreserveAST)
+			} else {
+				pkgWithTests[pkgName] = &pkgWithTest{main: doc.New(pkgAst, packageBasePath, doc.PreserveAST)}
+			}
 		}
+	}
+	for _, pkg := range pkgWithTests {
+		pkg.writeOutPackageMD(fset, d.workingDir, outDir)
 	}
 	return nil
 }
@@ -107,7 +97,10 @@ func (d *DocMD) processDir(outDir, packageBasePath, sourcePath string) error {
 func (d *DocMD) ProcessPackageDirs(outDir, packageBasePath string, dirs ...string) error {
 	// for each package dir, walk the directory tree, and create fileset for each, process
 	// fileset using ast
-
+	outFullPath, err := filepath.Abs(outDir)
+	if err != nil {
+		return err
+	}
 	for _, dir := range dirs {
 		abspath, err := filepath.Abs(dir)
 		if err != nil {
@@ -125,15 +118,17 @@ func (d *DocMD) ProcessPackageDirs(outDir, packageBasePath string, dirs ...strin
 			if info.IsDir() {
 				relPath, err := filepath.Rel(prefixDir, sourcePath)
 				currentOutDir := filepath.Dir(filepath.Join(outDir, relPath))
-				if _, err := os.Stat(currentOutDir); os.IsNotExist(err) {
-					// output path doesn't exist, need to make
-					os.Mkdir(currentOutDir, os.ModePerm)
-				}
-				fmt.Println("  * Doing", sourcePath, relPath)
 				packageImportPath := fmt.Sprintf("%s/%s", packageBasePath, relPath)
 				if packageBasePath == "" {
 					packageImportPath = relPath
 				}
+				if strings.HasSuffix(sourcePath, ".git") {
+					return filepath.SkipDir
+				}
+				if strings.HasPrefix(sourcePath, outFullPath) {
+					return filepath.SkipDir
+				}
+				fmt.Println("  * Doing", sourcePath, relPath)
 				err = d.processDir(currentOutDir, packageImportPath, sourcePath)
 				if err != nil {
 					fmt.Printf("failed to process path %q: %v\n", sourcePath, err)
@@ -150,18 +145,6 @@ func (d *DocMD) ProcessPackageDirs(outDir, packageBasePath string, dirs ...strin
 	return nil
 }
 
-func anyTypeSourceString(fset *token.FileSet, _type interface{}) string {
-	var buffer bytes.Buffer
-	printer.Fprint(&buffer, fset, _type)
-	return buffer.String()
-}
-
-func (d *DocMD) anyTypeSourceString(fset *token.FileSet) func(interface{}) string {
-	return func(_type interface{}) string {
-		return anyTypeSourceString(fset, _type)
-	}
-}
-
 // getParamNames from ast.Ident, ie: a, b string or a string
 func getParamNames(idents []*ast.Ident, paramTypeString string) string {
 	if len(idents) == 0 {
@@ -175,106 +158,4 @@ func getParamNames(idents []*ast.Ident, paramTypeString string) string {
 		paramNames = append(paramNames, i.Name)
 	}
 	return fmt.Sprint(strings.Join(paramNames, ", "), " ", paramTypeString)
-}
-
-// functionParam from ast.FuncDecl, this is for both parameters, and results
-func (d *DocMD) functionParam(fset *token.FileSet) func(string, *ast.FuncDecl) string {
-	return func(_type string, decl *ast.FuncDecl) string {
-		var params []string
-		if decl != nil {
-			offset := decl.Pos()
-			if decl.Doc != nil {
-				offset = decl.Doc.Pos()
-			}
-			paramDeclString := anyTypeSourceString(fset, decl)
-			if fields, ok := map[string]*ast.FieldList{"params": decl.Type.Params, "results": decl.Type.Results}[_type]; ok && fields != nil {
-				for _, field := range fields.List {
-					fieldType := paramDeclString[field.Type.Pos()-offset : field.Type.End()-offset]
-					params = append(params, getParamNames(field.Names, fieldType))
-				}
-			}
-		}
-		if len(params) > 0 {
-			return fmt.Sprintf("(%s)", strings.Join(params, ", "))
-		} else if _type == "params" {
-			return "()"
-		}
-		return ""
-	}
-}
-
-// sourceFileLink generate links for the source file, need to rework base on relative path of the doc
-func (d *DocMD) sourceFileLink(fset *token.FileSet, outfile string) func(string) string {
-	outLevel := len(filepath.SplitList(outfile))
-	sourceRel := strings.Repeat("../", outLevel)
-	return func(_filepath string) string {
-
-		relPath, _ := filepath.Rel(d.workingDir, _filepath)
-		return fmt.Sprintf("[%s](%s%s)", filepath.Base(_filepath), sourceRel, relPath)
-	}
-}
-
-func (d *DocMD) functionSignature(fset *token.FileSet) func(*doc.Func) string {
-	return func(f *doc.Func) string {
-		functionGet := d.functionParam(fset)
-		return fmt.Sprintf("func %s%s%s", f.Decl.Name.Name, functionGet("params", f.Decl), functionGet("results", f.Decl))
-	}
-}
-
-func (d *DocMD) functionAnchor(fset *token.FileSet) func(string, interface{}) string {
-	return func(linkType string, _f interface{}) string {
-		var name, objType string
-		switch f := _f.(type) {
-		case *doc.Type:
-			name = f.Name
-			objType = "type"
-		case *doc.Func:
-			name = f.Decl.Name.Name
-			objType = "func"
-		default:
-			panic(fmt.Errorf("unhandle type %v", _f))
-		}
-
-		if t, ok := map[string]string{
-			"link":   strings.ToLower(fmt.Sprintf("#%s-%s", objType, name)),
-			"anchor": fmt.Sprintf("%s-%s", objType, name),
-		}[linkType]; ok {
-			return t
-		} else {
-			return ""
-		}
-	}
-}
-
-func (d *DocMD) getExampleForFunc(pkg *Package) func(*doc.Type, *doc.Func) []*doc.Func {
-	return func(t *doc.Type, f *doc.Func) []*doc.Func {
-		ret := make([]*doc.Func, 0)
-		for _, prefix := range []string{"Example", "Benchmark"} {
-			var funcKey string
-			switch {
-			case t != nil && f != nil:
-				funcKey = fmt.Sprintf("%s%s_%s", prefix, t.Name, f.Name)
-			case t == nil && f != nil:
-				funcKey = fmt.Sprintf("%s%s", prefix, f.Name)
-			case t != nil:
-				funcKey = fmt.Sprintf("%s%s", prefix, t.Name)
-			default:
-				return nil
-			}
-			if e, ok := pkg.FuncsName[funcKey]; ok {
-				ret = append(ret, e)
-			}
-		}
-		return ret
-	}
-}
-
-func (d *DocMD) templateFuncMap(fset *token.FileSet, pkg *Package, outfile string) *template.FuncMap {
-	return &template.FuncMap{
-		"functionSignature":   d.functionSignature(fset),
-		"anyTypeSourceString": d.anyTypeSourceString(fset),
-		"sourceFileLink":      d.sourceFileLink(fset, outfile),
-		"anchorFunc":          d.functionAnchor(fset),
-		"getExampleForFunc":   d.getExampleForFunc(pkg),
-	}
 }

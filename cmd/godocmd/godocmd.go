@@ -9,16 +9,15 @@ import (
 	"github.com/nickchen/godocmd"
 )
 
+//
 func main() {
-	var outDir, packageBasePath, templateFile string
+	var outDir, packageBasePath string
 	defaultOutDir := "./docs"
 	defaultPackagePath := "github.com/nickchen/godocmd"
-	defaultTemplateFile := "./markdown.tmpl"
 	flag.StringVar(&outDir, "output-dir", defaultOutDir, "output directory")
 	flag.StringVar(&packageBasePath, "package-base", defaultPackagePath, `package import basepath, output from "go list -m"`)
-	flag.StringVar(&templateFile, "template", defaultTemplateFile, `template file`)
 	flag.Parse()
-	d, err := godocmd.New(templateFile)
+	d, err := godocmd.New()
 	if err != nil {
 		log.Fatal(err)
 	}

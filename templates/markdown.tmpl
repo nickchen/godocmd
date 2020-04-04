@@ -1,3 +1,4 @@
+
 # {{.Name}}
 
 import "{{.ImportPath}}"
@@ -25,18 +26,18 @@ import "{{.ImportPath}}"
 {{if .Consts}}
 ## Constants
 {{range $const := .Consts}}
-```
+{{ codeBlock }}
 {{ anyTypeSourceString .Decl }}
-```
+{{ codeBlock }}
 {{end}}{{/* END range .Consts */}}{{end}}{{/* END if .Consts */}}
 {{if .FuncsFiltered}}
 ## Functions
 {{range $func := .FuncsFiltered}}
 ### func {{.Name}}
 {{.Doc}}
-```
+{{ codeBlock }}
 {{functionSignature .}}
-```
+{{ codeBlock }}
 {{end}}{{/* END range .FuncsFiltered */}}
 {{end}}{{/* END if .FuncsFiltered */}}
 
@@ -44,48 +45,59 @@ import "{{.ImportPath}}"
 ## Types
 {{range $type := .Types}}
 ### type {{ .Name }}
-```
+{{ codeBlock }}
 {{ anyTypeSourceString .Decl }}
-```
+{{ codeBlock }}
 {{ with .Consts }}
 {{ range $const := . }}
 {{.Doc}}
-```
+{{ codeBlock }}
 {{ anyTypeSourceString .Decl }}
-```
-{{ end }} {{/* END range . */}}
+{{ codeBlock }}
+
+{{ end }} {{/* END range $const := . */}}
 {{ end }} {{/* END with .Const */}}
 
 {{ with .Funcs }}
 {{ range $func := . }}
 #### {{ functionSignature . }}
 {{.Doc}}
-```
+{{ codeBlock }}
 {{ functionSignature . }}
-```
+{{ codeBlock }}
 {{ range $example := getExampleForFunc $type . }}
 ##### Example ({{$func.Name}})
-```
+{{ codeBlock }}
 {{ anyTypeSourceString .Decl }}
-```
-{{ end }} {{/* END with example */}}
-{{ end }} {{/* END range .(Funcs) */}}{{ end }} {{/* END with .Funcs */}}
+{{ codeBlock }}
+###### type 2 {{ .Name }}
+{{ end }} {{/* END range $example := getExampleForFunc $type . */}}
+{{ end }} {{/* END range $func := . */}}
+{{ end }} {{/* END with .Funcs */}}
 
 {{ with .Methods }}
 {{ range $func := . }}
 #### {{ functionSignature . }}
 {{.Doc}}
-```
+{{ codeBlock }}
 {{ functionSignature . }}
-```
+{{ codeBlock }}
 {{ range $example := getExampleForFunc $type . }}
 
 ##### Example ({{$func.Name}})
-```
+{{ codeBlock }}
 {{ anyTypeSourceString .Decl }}
-```
+{{ codeBlock }}
 {{ end }} {{/* END with example */}}
 {{ end }} {{/* END range .(Methods) */}}{{ end }} {{/* END with .Methods */}}
+
+{{ range $example := getOtherExamplesForType $type }}
+
+##### Example ({{$type.Name}})
+{{ codeBlockGolang }}
+{{ anyTypeSourceString .Decl }}
+{{ codeBlock }}
+{{ end }} {{/* END range $example := getOtherExamplesForType $type */}}
 
 {{ end }} {{/* END range .(Types) */}}
 {{ end }} {{/* END if .Types */}}
